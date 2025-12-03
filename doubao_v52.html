@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备报警原因分析Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- 标题区域 -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">设备报警原因分析工具</h1>
+            <p class="text-gray-600">随机生成数据 → 自动判断报警状态 → 分析根因</p>
+        </header>
+
+        <!-- 控制按钮区 -->
+        <div class="flex justify-center mb-6 space-x-4">
+            <button id="randomBtn" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-6 rounded transition-colors flex items-center">
+                <i class="fa fa-random mr-2"></i> 随机生成数据
+            </button>
+            <button id="resetBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-6 rounded transition-colors flex items-center">
+                <i class="fa fa-refresh mr-2"></i> 重置初始数据
+            </button>
+        </div>
+
+        <!-- 主要内容区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：数据编辑区 -->
+            <div class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
+                <h2 class="text-xl font-semibold mb-4 flex items-center border-b pb-3">
+                    <i class="fa fa-table text-blue-500 mr-2"></i>设备数据管理
+                </h2>
+                <div class="overflow-x-auto max-h-[70vh] rounded-lg border">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-100 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">设备ID</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">参数</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">单位</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">数值</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">上限</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">下限</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">报警状态</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="dataTableBody">
+                            <!-- 数据将动态渲染 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3 text-sm text-gray-500 bg-gray-50 p-2 rounded">
+                    <i class="fa fa-info-circle mr-1"></i> 点击数值列可手动编辑，或使用上方按钮随机生成
+                </div>
+            </div>
+
+            <!-- 右侧：结果展示与下载 -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 flex items-center border-b pb-3">
+                    <i class="fa fa-exclamation-triangle text-amber-500 mr-2"></i>分析结果
+                </h2>
+                <div class="bg-gray-50 p-4 rounded-lg mb-6 max-h-[60vh] overflow-y-auto border" id="resultContainer">
+                    <!-- 结果将动态渲染 -->
+                </div>
+                <div class="flex space-x-3">
+                    <button id="refreshBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center">
+                        <i class="fa fa-refresh mr-2"></i> 刷新结果
+                    </button>
+                    <button id="downloadBtn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center">
+                        <i class="fa fa-download mr-2"></i> 下载
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始数据
+        const initialData = [
+            { device_id: 'CHW', param: '冷冻水温度', unit: '℃', value: '11', high_limit: '10', low_limit: '7', alarm_state: 'HIGH' },
+            { device_id: 'PAU-1', param: '送风温度', unit: '℃', value: '33', high_limit: '25', low_limit: '12', alarm_state: 'HIGH' },
+            { device_id: 'PAU-1', param: '风机状态', unit: '', value: '停机', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-1', param: '设定温度', unit: '℃', value: '22', high_limit: '27', low_limit: '15', alarm_state: '' },
+            { device_id: 'PAU-1', param: '冷水阀开度', unit: '%', value: '33', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-2', param: '送风温度', unit: '℃', value: '28', high_limit: '25', low_limit: '12', alarm_state: 'HIGH' },
+            { device_id: 'PAU-2', param: '风机状态', unit: '', value: '运行', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-2', param: '设定温度', unit: '℃', value: '28', high_limit: '27', low_limit: '15', alarm_state: 'HIGH' },
+            { device_id: 'PAU-2', param: '冷水阀开度', unit: '%', value: '30', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-3', param: '送风温度', unit: '℃', value: '30', high_limit: '25', low_limit: '12', alarm_state: 'HIGH' },
+            { device_id: 'PAU-3', param: '风机状态', unit: '', value: '运行', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-3', param: '设定温度', unit: '℃', value: '25', high_limit: '27', low_limit: '15', alarm_state: '' },
+            { device_id: 'PAU-3', param: '冷水阀开度', unit: '%', value: '95', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-4', param: '送风温度', unit: '℃', value: '28', high_limit: '25', low_limit: '12', alarm_state: 'HIGH' },
+            { device_id: 'PAU-4', param: '风机状态', unit: '', value: '运行', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-4', param: '设定温度', unit: '℃', value: '25', high_limit: '27', low_limit: '15', alarm_state: '' },
+            { device_id: 'PAU-4', param: '冷水阀开度', unit: '%', value: '40', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-5', param: '送风温度', unit: '℃', value: '11', high_limit: '25', low_limit: '12', alarm_state: 'LOW' },
+            { device_id: 'PAU-5', param: '风机状态', unit: '', value: '运行', high_limit: '', low_limit: '', alarm_state: '' },
+            { device_id: 'PAU-5', param: '设定温度', unit: '℃', value: '22', high_limit: '27', low_limit: '15', alarm_state: '' },
+            { device_id: 'PAU-5', param: '冷水阀开度', unit: '%', value: '95', high_limit: '', low_limit: '', alarm_state: '' }
+        ];
+
+        // 当前数据（用于操作）
+        let currentData = JSON.parse(JSON.stringify(initialData));
+
+        // 生成指定范围内的随机整数
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // 随机生成数据
+        function generateRandomData() {
+            currentData.forEach(row => {
+                switch(row.param) {
+                    case '风机状态':
+                        // ①风机状态：随机"运行"或"停机"
+                        row.value = Math.random() > 0.7 ? '停机' : '运行';
+                        break;
+                    case '冷冻水温度':
+                        // ②冷冻水温度：6-12之间
+                        row.value = getRandomInt(6, 12).toString();
+                        break;
+                    case '送风温度':
+                        // ③送风温度：10-30之间
+                        row.value = getRandomInt(10, 30).toString();
+                        break;
+                    case '设定温度':
+                        // ④设定温度：14-28之间
+                        row.value = getRandomInt(14, 28).toString();
+                        break;
+                    case '冷水阀开度':
+                        // ⑤冷水阀开度：0-100之间
+                        row.value = getRandomInt(0, 100).toString();
+                        break;
+                    default:
+                        // 其他参数保持不变
+                        break;
+                }
+                
+                // 重新计算报警状态
+                row.alarm_state = determineAlarmState(row);
+            });
+            
+            // 重新渲染表格和结果
+            renderDataTable();
+            calculateResults();
+            
+            // 添加动画效果提示数据已更新
+            const randomBtn = document.getElementById('randomBtn');
+            randomBtn.classList.add('bg-green-700');
+            setTimeout(() => {
+                randomBtn.classList.remove('bg-green-700');
+            }, 300);
+        }
+
+        // 重置为初始数据
+        function resetToInitialData() {
+            currentData = JSON.parse(JSON.stringify(initialData));
+            renderDataTable();
+            calculateResults();
+            
+            // 添加动画效果提示
+            const resetBtn = document.getElementById('resetBtn');
+            resetBtn.classList.add('bg-gray-700');
+            setTimeout(() => {
+                resetBtn.classList.remove('bg-gray-700');
+            }, 300);
+        }
+
+        // 判断报警状态
+        function determineAlarmState(rowData) {
+            if (!rowData.high_limit && !rowData.low_limit) return '';
+            
+            const value = parseFloat(rowData.value);
+            const highLimit = parseFloat(rowData.high_limit);
+            const lowLimit = parseFloat(rowData.low_limit);
+            
+            if (isNaN(value)) return '';
+            
+            if (!isNaN(highLimit) && value > highLimit) {
+                return 'HIGH';
+            } else if (!isNaN(lowLimit) && value < lowLimit) {
+                return 'LOW';
+            } else {
+                return '';
+            }
+        }
+
+        // 渲染数据表格
+        function renderDataTable() {
+            const tableBody = document.getElementById('dataTableBody');
+            tableBody.innerHTML = '';
+            
+            currentData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors';
+                
+                if (row.device_id === 'CHW') {
+                    tr.classList.add('bg-blue-50');
+                }
+                
+                Object.values(row).forEach((value, colIndex) => {
+                    const td = document.createElement('td');
+                    td.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-700 border-r last:border-r-0';
+                    
+                    if (colIndex === 6) {
+                        if (value === 'HIGH') {
+                            td.className += ' bg-red-50 text-red-700 font-medium';
+                        } else if (value === 'LOW') {
+                            td.className += ' bg-blue-50 text-blue-700 font-medium';
+                        }
+                        td.contentEditable = false;
+                    } else if (colIndex === 3) {
+                        td.contentEditable = true;
+                        td.className += ' font-medium';
+                    } else {
+                        td.contentEditable = false;
+                    }
+                    
+                    td.textContent = value || '';
+                    td.dataset.index = index;
+                    td.dataset.field = Object.keys(row)[colIndex];
+                    
+                    if (colIndex === 3) {
+                        td.addEventListener('blur', (e) => {
+                            updateRowData(e.target);
+                        });
+                        td.addEventListener('keypress', (e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                updateRowData(e.target);
+                                e.target.blur();
+                            }
+                        });
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // 更新行数据
+        function updateRowData(cell) {
+            const index = parseInt(cell.dataset.index);
+            const field = cell.dataset.field;
+            const newValue = cell.textContent.trim();
+            
+            currentData[index][field] = newValue;
+            
+            const newAlarmState = determineAlarmState(currentData[index]);
+            currentData[index].alarm_state = newAlarmState;
+            
+            const alarmCell = cell.parentElement.querySelector('td:nth-child(7)');
+            alarmCell.textContent = newAlarmState;
+            alarmCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-700 border-r last:border-r-0';
+            
+            if (newAlarmState === 'HIGH') {
+                alarmCell.classList.add('bg-red-50', 'text-red-700', 'font-medium');
+            } else if (newAlarmState === 'LOW') {
+                alarmCell.classList.add('bg-blue-50', 'text-blue-700', 'font-medium');
+            }
+            
+            calculateResults();
+        }
+
+        // 计算报警结果
+        function calculateResults() {
+            const results = [];
+            
+            // 获取所有设备ID（排除CHW）
+            const deviceIds = [...new Set(currentData.map(row => row.device_id))].filter(id => id !== 'CHW');
+            
+            // 获取CHW数据
+            const chwTemp = parseFloat(currentData.find(row => row.device_id === 'CHW' && row.param === '冷冻水温度')?.value || 0);
+            const chwHighLimit = parseFloat(currentData.find(row => row.device_id === 'CHW' && row.param === '冷冻水温度')?.high_limit || 0);
+            
+            // 遍历每个设备
+            deviceIds.forEach(deviceId => {
+                // 获取该设备的送风温度数据
+                const supplyAirData = currentData.find(row => 
+                    row.device_id === deviceId && row.param === '送风温度'
+                );
+                
+                // 只有送风温度有报警时才处理
+                if (!supplyAirData || !supplyAirData.alarm_state) return;
+                
+                const alarmState = supplyAirData.alarm_state.toUpperCase();
+                let rootCause = '';
+                
+                // 获取该设备的所有参数
+                const fanState = currentData.find(row => row.device_id === deviceId && row.param === '风机状态')?.value;
+                const setTemp = parseFloat(currentData.find(row => row.device_id === deviceId && row.param === '设定温度')?.value || 0);
+                const setTempLow = parseFloat(currentData.find(row => row.device_id === deviceId && row.param === '设定温度')?.low_limit || 0);
+                const setTempHigh = parseFloat(currentData.find(row => row.device_id === deviceId && row.param === '设定温度')?.high_limit || 0);
+                const valveOpening = parseFloat(currentData.find(row => row.device_id === deviceId && row.param === '冷水阀开度')?.value || 0);
+                
+                // 严格按照规则判断根因
+                if (alarmState === 'HIGH') {
+                    // HIGH报警逻辑
+                    if (fanState === '停机') {
+                        rootCause = `${deviceId}.风机状态【停机】`;
+                    } else if (setTemp > setTempHigh) {
+                        rootCause = `${deviceId}.设定温度过高`;
+                    } else if (valveOpening < 50) {
+                        rootCause = `${deviceId}.阀门开度欠开`;
+                    } else if (chwTemp > chwHighLimit) {
+                        rootCause = 'CHW.冷冻水温度过高';
+                    } else {
+                        rootCause = `${deviceId}.检查传感器/执行器`;
+                    }
+                } else if (alarmState === 'LOW') {
+                    // LOW报警逻辑
+                    if (setTemp < setTempLow) {
+                        rootCause = `${deviceId}.设定温度过低`;
+                    } else if (valveOpening > 90) {
+                        rootCause = `${deviceId}.阀门开度过开`;
+                    } else {
+                        rootCause = `${deviceId}.检查传感器/执行器`;
+                    }
+                }
+                
+                if (rootCause) {
+                    results.push({
+                        device: deviceId,
+                        alarmState: alarmState,
+                        rootCause: rootCause
+                    });
+                }
+            });
+            
+            renderResults(results);
+            return results;
+        }
+
+        // 渲染结果
+        function renderResults(results) {
+            const container = document.getElementById('resultContainer');
+            container.innerHTML = '';
+            
+            if (results.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fa fa-check-circle text-3xl mb-2 text-green-500"></i>
+                        <p>暂无送风温度报警或数据正常</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'space-y-3';
+            
+            results.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-4 rounded-lg shadow-sm border-l-4 border-amber-500';
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="font-bold text-gray-800">${item.device}</span>
+                        <span class="text-xs px-2 py-1 rounded-full ${item.alarmState === 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}">
+                            ${item.alarmState}
+                        </span>
+                    </div>
+                    <div class="text-gray-600 text-sm mb-2">送风温度报警</div>
+                    <div class="text-blue-700 font-medium">
+                        <i class="fa fa-search mr-2"></i>${item.rootCause}
+                    </div>
+                `;
+                
+                resultDiv.appendChild(card);
+            });
+            
+            container.appendChild(resultDiv);
+        }
+
+        // 下载结果
+        function downloadResults() {
+            const results = calculateResults();
+            let content = '';
+            
+            results.forEach(item => {
+                content += `${item.device} 送风温度 ${item.alarmState} ←${item.rootCause.split('.')[1] || item.rootCause}\n`;
+            });
+            
+            if (!content) {
+                content = '暂无送风温度报警或数据正常\n';
+            }
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'trace_result.txt';
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
+
+        // 初始化
+        window.onload = function() {
+            renderDataTable();
+            calculateResults();
+            
+            // 绑定按钮事件
+            document.getElementById('randomBtn').addEventListener('click', generateRandomData);
+            document.getElementById('resetBtn').addEventListener('click', resetToInitialData);
+            document.getElementById('refreshBtn').addEventListener('click', calculateResults);
+            document.getElementById('downloadBtn').addEventListener('click', downloadResults);
+        };
+    </script>
+</body>
+</html>
